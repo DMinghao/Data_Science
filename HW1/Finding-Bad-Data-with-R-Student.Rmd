@@ -1,0 +1,473 @@
+---
+title: "Finding Bad Data with R"
+author: "Minghao Du"
+output:
+  html_document:
+    df_print: paged
+  word_document: default
+  html_notebook: default
+---
+
+This instruction document is generated with R Markdown. This exercise will introduce you to the basic of R Markdown and a very powerful R package for data management and exploratory analysis, `tidyverse`. 
+
+In this exercise, you’ll be working with a partial data set of orders for an imaginary company, Vandelay Industries. The data set contains the total amount and zip code information for 45,808 orders placed between January, 2009 and January, 2014.
+
+# R & R Markdown Basic
+
+Again, this is an [R Markdown](http://rmarkdown.rstudio.com) Notebook. When you execute code within the notebook, the results appear beneath the code. 
+
+Try executing this chunk by clicking the *Run* button within the chunk or by placing your cursor inside it and pressing *Cmd+Shift+Enter*. 
+
+```{r}
+print("Data Science Rocks!")
+```
+
+Add a new chunk by clicking the *Insert Chunk* button on the toolbar or by pressing *Cmd+Option+I*.
+
+When you save the notebook, an HTML file containing the code and output will be saved alongside it (click the *Preview* button or press *Cmd+Shift+K* to preview the HTML file). 
+
+The preview shows you a rendered HTML copy of the contents of the editor. Consequently, unlike *Knit*, *Preview* does not run any R code chunks. Instead, the output of the chunk when it was the last run in the editor is displayed.
+
+Okay. Let's get started. 
+
+## Clear the workspace 
+It is (almost always) good to start with a clean R workspace. It ensures that your results will be reproducible whenever you run the codes. 
+```{r}
+rm(list = ls())
+```
+
+## Libraries and Packages
+There are various libraries or packages for R for special topics or specialized methods.
+In order to download a new package, go to *Tools* and select *Install package(s)*. Select your region and then the package you wish to install. Alternatively, you can manually install a package using the comment `install.packages()`. 
+Once a package has been installed (for example, the package *tidyverse*), it can be added to an R session by the command, `library()`
+
+```{r}
+if(!require(backports))install.packages("backports")
+if(!require(tidyverse))install.packages("tidyverse")
+if(!require(readxl))install.packages("readxl")
+
+library(tidyverse)
+library(readxl)
+```
+When a package has been downloaded once, it is not necessary to download it again. However, unless the workspace is saved and reloaded, the packages must be added to the session every time R is restarted. 
+
+## Functions and commands
+Functions in R can have quite a number of parameters, which are set to a default value. To change it, enter the parameter name, followed by “=“ and the new value of the parameter.
+
+If detailed information about R function or command is needed, you can use `help()` function. To check what `library()` function is for: 
+```{r}
+help(library)
+```
+If you do not know the name of the function for your analysis, simply Google your question! 
+
+# Import Data from Excel
+You can import data in various formats into R. For this exercise, we will import data from Microsoft Excel. 
+Download *Vandelay Orders by Zipcode.xlsx* from the course Blackboard site. 
+
+Remember where you saved it! The best way is to save the data file in the same folder where this markdown file is saved.
+
+Before importing the data, open the file in Microsoft Excel. Take a look through the order data (the “Vandelay Order by Zip” tab), and the data dictionary (the “Data Dictionary” tab).  
+
+Let's import the data into R using R studio's data import wizard. 
+Click Environment on the upper-right side of R studio, click "Import Dataset"
+
+
+Then, a new window will pop up. Select the file that you've saved.
+
+Once you select the file, it will give you the preview of the dataset in the default sheet in the Excel file.
+You can change the import options as you want. We will make three changes. 
+
+* Change the name to *order*. 
+
+* Change the type of order_short_date to *date*.
+
+* Change the type of zip_code to *character*. 
+
+Now, the preview will look like this. Click Import. 
+
+You will see that the command (which starts with order<-read_excel…) for importing the dataset in the Console window. Copy the command to the script file for your convenience. Here is the code that works on *my computer*. It works because I saved the data file and this markdown file in the same folder. If you saved the data file in a different folder, this code would not work on your computer. Try again, after moving the data file into the correct place. 
+
+```{r}
+
+order <- read_excel("Vandelay-Orders-by-Zipcode.xlsx", 
+                    col_types = c("numeric", "numeric", "date","numeric", "text"))  
+
+head(order)
+nrow(order)  
+```
+
+The first thing we want to verify is that every zip code in the data set is a valid postal code of the US Postal Service. To do this, we need a list of the correct zip codes. You can find this from various online sources.
+
+I’ve already imported a list of zip codes into your workbook. You’ll find them under the
+ZipCodeStateLookup tab. Take a quick look at that tab and check out the data on that spreadsheet.
+
+You can see that it would take a very long time to manually search for each order’s zip code in the lookup table. So we need a quicker way to do that. We will use the merge function in R.
+
+Import the zip code data as `zipcode`. Select the same Excel file (Vandelay Orders by Zipcode.xlsx) and choose “ZipCodeStateLookup”. 
+
+
+
+Let’s change the name to `zipcode` and the type of zip column to character. 
+
+
+
+```{r}
+zipcode <- read_excel("Vandelay-Orders-by-Zipcode.xlsx", sheet = "ZipCodeStateLookup", 
+                      col_types = c("text","text"))
+
+head(order)
+head(zipcode)
+```
+
+# Tidying data & data exploration
+I'd like to introduce `tidyverse` package, which is a very handy tool to save you from sleepless nights. 
+Let's save the datasets in a tidy format using `as.tibble()`. 
+
+```{r}
+order<-as.tibble(order)
+zipcode<-as.tibble(zipcode)
+
+order
+zipcode
+```
+
+Base R functions are still useful. 
+```{r}
+print(order) # print the dataset
+head (order) # show first six rows 
+head (order,10) # specify the number of rows to print
+tail (order) # show the last six rows
+tail (order,10) # specify the number of rows to print
+summary(order) # basic summary statistics
+names(order)   # check variable names
+nrow(order)    # number of rows
+ncol(order)    # number of columns
+dim(order)    # dimension of data
+```
+
+`glimpse()` provides a preview of data with helpful details. It is very handy especially when you have to deal with a dataset with many variables. 
+
+```{r}
+glimpse(order)
+glimpse(zipcode)
+```
+
+To access a specific attribute of an object, write the name of the object, followed by the symbol $ and then by the name of the variable: 
+```{r}
+head(order$zip_code)
+```
+
+A column of the data table can be accessed by using its index in square brackets:
+```{r}
+head(order[2])
+```
+
+A row of the data table can be selected as follows:
+```{r}
+order[23,]
+```
+
+
+# Merge datasets
+Let's merge the two datasets: `order` and `zipcode`. 
+```{r}
+head(order)
+head(zipcode)
+```
+
+These two lines do basically the same thing. 
+```{r}
+# merge the order and zip code tables
+order_zipcode<-merge(order,zipcode,by.x="zip_code",by.y="zip",all.x=TRUE)  
+order_zipcode<-left_join(order,zipcode,by=c("zip_code"="zip"))
+```
+
+Using the pipe operator, the second line can be re-written as: 
+```{r}
+order_zipcode<-order%>%
+  left_join(zipcode,by=c("zip_code"="zip"))
+```
+
+
+Check the first few rows using head or View: 
+```{r}
+head(order_zipcode)
+#View(order_zipcode)
+```
+
+# Finding missing values
+You’ll see some of the cells have a “NA” value. This means that those zip codes weren’t found in the official table (there’s no row where that value exists) and therefore aren’t valid.
+```{r}
+order_zipcode
+# check for NAs
+head(is.na(order_zipcode))
+```
+
+```{r}
+# Count number of NAs
+sum(is.na(order_zipcode))
+```
+
+# Retain complete cases - delete rows with missing values
+You may create a subset of data, keeping only complete cases. 
+```{r}
+order_zipcode[complete.cases(order_zipcode),]
+na.omit(order_zipcode)
+```
+
+Because we did NOT save the results anywhere, running the code chunk above has NO impact on `order_zipcode`. If you wish to use the complete cases only, you should save them back to `order_zipcode`. For now, we will not save the result.  
+
+# Cleaning and manipulating dataset 
+## Useful data manipulation functions 
+Basic data manipulation functions include
+* filter
+* select
+* arrange
+* mutate
+* summarize
+
+## Filter - filter subsets observations
+Quick visual inspection reveals that zip code 01099 is a problem. Let's find problematic zip codes, which have missing state info. 
+```{r}
+filter(order_zipcode, is.na(state))
+
+# it can be re-written as
+order_zipcode%>%
+  filter(is.na(state))
+
+```
+
+Zip code 01099 indeed has a problem. You would either need to look up the customer (customer_id #2 according to the table) in another database to get the correct zip code, or call the customer to re-verify their address.
+
+Assume you’ve found the address and it’s “113 Ridge Road, Worthington, MA.” Open a browser and Google that address. You will see this:
+
+Now that you’ve found the correct zip code (01098) and want to replace 1099 with the correct value 01098. 
+
+## Mutate - changes or adds variables
+Let's replace the zip code 1099 to 1098.`mutate()` is a function to create (or replace) a new variable. Check if you made changes correctly. 
+
+```{r}
+# replace zip code 1099 to 1098
+order_zipcode <- order_zipcode %>% 
+  mutate(zip_code = replace(zip_code, zip_code == "1099", "1098"))
+
+# check if the correction is made
+order_zipcode%>%
+  filter(zip_code=="1098")
+```
+
+Let’s check if there are other incorrect zip codes using `is.na()` function. 
+```{r}
+# find the orders without state info.
+order_zipcode%>%
+  filter(is.na(state))
+```
+
+Using mutate, you can also create a new variable. Let's create the variable, *year*, which indicates the year when an order was placed. Check this site for more information about the ways to handle date data: https://www.statmethods.net/input/dates.html
+
+This time, we will SAVE the result back to `order_zipcode`. 
+
+```{r}
+order_zipcode<-order_zipcode%>%
+  mutate(year=format(order_short_date,"%d"))
+
+order_zipcode
+```
+
+
+## Arrange
+Using arrange(), you can easily sort a table based on a variable.
+```{r}
+order_zipcode%>%
+  arrange(order_total)
+```
+In descending order as well. 
+```{r}
+order_zipcode%>%
+  arrange(desc(order_total))
+```
+
+In combination:
+```{r}
+order_zipcode%>%
+  arrange(state,desc(order_total))
+```
+
+
+Filter then arrange:
+```{r}
+order_zipcode%>%
+  filter(state=="PA")%>%
+  arrange(desc(order_total))
+```
+
+# Handling Outliers: Identify errors in the order total amount
+Now we want to figure out if there are any suspicious values for the total order amount (order_total). When we talk about suspicious values, we’re really talking about outliers – values that are way too low or way too high. In this case, this would include zero-dollar order totals (i.e., 0.00) and order totals much larger than the rest.
+
+It’s important to identify outliers because they can skew your data because they aren’t representative of the rest of the population. They also could be flat-out incorrect; the more atypical the value, the more likely it could be a mistake in the data.
+
+We’ll start by looking for order totals much larger than the rest.
+
+First, let’s determine the current average order total. 
+```{r}
+# calculate the average order total
+mean(order_zipcode$order_total)
+```
+The result is 157.8742. Keep that handy for later.
+
+Let’s draw a scatter plot. We will learn a fancier way to create charts with `ggplot2` next week. For today, we will use a basic R plotting function. Run the command:
+```{r}
+# create a scatter plot
+plot(order_zipcode$order_total)
+```
+
+The x-axis (horizontal) doesn’t have much meaning – it’s just the row number of the data in the spreadsheet. That’s why you see the plot end at about 45,000 on the x-axis.
+
+However, the y-axis (vertical) represents the order total. It looks like most order totals are less than about \$2,000. However, there is a set of orders that are very large - \$40,000 to \$60,000. And there is a large gap in-between that group and the rest. That’s suspicious so let’s isolate those orders.
+
+Let’s examine the orders with greater than 25,000. 
+```{r}
+# find the orders with the amount greater than 25000
+order_zipcode%>%
+  filter(order_total>25000)%>%
+  group_by(state)%>%
+  summarise(num_order=n())
+```
+
+That will be sure to get all of the outliers.
+
+(You could have also chosen “35000,” or “32000,” or “10000.” Any number within that gap in the two sets of data points would work.)
+
+You’ll see 21 rows left out of the original 45,808. 
+Let’s remove those rows to see how much it affects the average order amount.
+
+This time, we will save the result as a new dataset, `order_zipcode_cleaned`. 
+```{r}
+# replace the order amount with NA
+order_zipcode_cleaned <- order_zipcode %>% 
+  mutate(order_total = replace(order_total, order_total>25000, NA))
+
+```
+This command will delete the data in those filtered rows (i.e. replacing the values with NA), leaving the rest of the data unaffected.
+
+Note that we did not get rid of the entire row, just the order_total column. We may want to use the rest of the data, which is correct, for other analyses.
+
+Let’s calculate the average again for the cleaned dataset. Because the column contains NA values, the simple code `mean(order$order_total)` will return NA. You should tell R to calculate the average excluding NA’s using `na.rm=TRUE`. 
+
+```{r}
+# recalculate the average
+mean(order_zipcode_cleaned$order_total,na.rm=T)
+
+```
+
+
+## Group_by & Summarise - Where do the orders come from?
+
+Let’s dig the data little more. Now let’s figure out where these orders come from.
+
+We will create a frequency table of orders by state and by zip code and sort them out based on the number of orders (not the total amount).
+
+First, create a frequency table of the orders by state. 
+
+
+```{r}
+# create a frequency table of the orders by state 
+table(order_zipcode_cleaned$state)
+```
+
+It returns the number of orders that come from each state. It is a simple way to get a frequency table. However, if you want to analyze data further by state, there is a more efficient way using `group_by()` and `summarise()`.  
+
+```{r}
+order_zipcode_cleaned%>%
+  group_by(state)%>%
+  summarise(num_order=n())
+
+```
+
+Some functions that will be handy to use for summarise include 
+
+* mean
+
+* sum
+
+* median
+
+* min
+
+* max
+
+Let's generate these summary statistics by states. 
+```{r}
+order_zipcode_cleaned%>%
+  group_by(state)%>%
+  summarise(num_order=n(),
+            mean=mean(order_total,na.rm=T),
+            sum=sum(order_total,na.rm=T),
+            median=median(order_total,na.rm=T),
+            max=max(order_total,na.rm=T))
+
+```
+
+Summarize by state and year:
+```{r}
+order_zipcode_cleaned%>%
+  group_by(state,year)%>%
+  summarise(num_order=n(),
+            mean=mean(order_total),
+            sum=sum(order_total),
+            median=median(order_total),
+            min=min(order_total),
+            max=max(order_total))
+
+```
+
+
+## Group_by & Arrange - sorts a table based on a variable
+Let's sort the data based on the frequency of orders in a descending order in each state. 
+```{r}
+# sort the data by the number of orders 
+order_zipcode_cleaned%>%
+  group_by(state)%>%
+  summarise(num_order=n())%>%
+  arrange(desc(num_order))
+```
+
+# Assignment 1
+For each question, fill the R code area (in the grey color) to find the answer to the following questions. The same questions are posted on the Course Blackboard site under Blackboard>Assignment>Assignment 1. 
+
+Submit your answer for Question 1-4 through Blackboard>Assignment 1. You also need to compile this R markdown file and submit your report as well, as an answer for Question 5. I've demonstrated how to complete your Assignment during our online lecture. Please check the recorded lecture if you are in any doubt. If you have any remaining questions (after attending/watching the online lecture!), feel free to attend office hours (mine or TAs') or email us.    
+
+Let's examine the orders from MD. Make sure that you use the cleaned dataset, `order_zipcode_cleaned` that we created in the previous step above.  
+
+(1) How many orders (i.e. the number of orders, not the total amount) came from MD (Maryland)? (hint: use `filter()`) 
+```{r}
+order_zipcode_cleaned %>%
+  filter(state == "MD") %>%
+  nrow()
+```
+
+(2) Are there any missing values in `order_total` among the orders from  MD? You will filter the orders from MD AND filter the orders that have `NA` in `order_total`. How many orders from MD has missing value for order total? (hint: use `filter()`)   
+```{r}
+order_zipcode_cleaned%>%
+  filter(state == "MD") %>%
+  filter(is.na(order_total)) %>%
+  nrow()
+```
+
+(3) Calculate the average (i.e. mean) `order_total` of the orders from MD. Make sure to include `na.rm=()` option. Without this option, you may get NA as an answer if there is at least one `NA` in order total. (hint: use `summarise()` with `na.rm=()`). Which one of the following is the closest number?   
+```{r}
+order_zipcode_cleaned %>%
+  filter(state == "MD") %>%
+  summarise(mean = mean(order_total, na.rm = T))
+```
+
+(4) Count the number of orders by zipcode areas in MD. Which zip code area received more than 100 orders?  
+```{r}
+order_zipcode_cleaned %>%
+  filter(state == "MD") %>%
+  group_by(zip_code) %>%
+  summarise(num_order = n()) %>%
+  filter(num_order > 100)
+```
+
+(5) Your last task is creating a report. Change the author's name on the top of this R markdown file to your name. Then, compile this R markdown to a Word document(.doc) or an HTML file (.html). Submit this report as an answer for Question 5 of Assignment 1. Your report should contain all R codes and results. You don't need to remove in-class exercise parts. It should be fine as long as your report includes the assignment questions and answers. 

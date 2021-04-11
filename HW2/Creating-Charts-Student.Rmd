@@ -1,0 +1,335 @@
+---
+title: "Exploratory Analysis with Visualization"
+author: "Minghao Du"
+output:
+  html_document:
+    df_print: paged
+  word_document: default
+  html_notebook: default
+  pdf_document: default
+---
+Objective: Learn the basics of `ggplot2()' by visualizing a sample data set
+
+Learning Outcomes: Understand the purpose and effective use of the following tools –line chart, histogram, box plot, scatter plot, bubble chart, and bullet graph. 
+
+# Clear the workspace 
+Let's start with cleaning the workspace and loading the required packages. Today, we will use a new package, `ggplot2()`, which is a powerful R graphic package. I highly recommend this site (and book) for more examples: http://www.cookbook-r.com/Graphs/
+
+```{r}
+rm(list = ls())
+library(readxl)
+library(tidyverse)
+library(ggplot2)
+```
+
+# Understanding the dataset
+
+In this exercise, we will use the crime statistics in large U.S. cities for 2009-2014. This dataset is obtained from the Uniform Crime Reports (UCR) published by the FBI (https://ucr.fbi.gov/crime-in-the-u.s/2014/crime-in-the-u.s.-2014). This file includes the number of crime occurrences per population (crime rates) and the number of police officers killed or assaulted in the line of duty.
+
+1)	Download “Crimes 2009-2014.xlsx” from Blackboard>Course Document. 
+2)	Open the file in Excel, and browse the data.
+3)	Take a look at Data Dictionary tab, and understand what each crime data is for.
+
+```{r}
+crimes <- read_excel("Crimes 2009-2014.xlsx")
+
+crimes
+```
+
+```{r}
+glimpse(crimes)
+```
+
+
+# Data Preparation
+The names of variables contain spaces, which make it difficult to manage in R. Let's rename variables. 
+
+```{r}
+# change the variable names
+colnames(crimes)<-c("city","state","region","date","population","murder_rate","violent_crime_rate","violent_crime_rate_pr","property_crime_rate","officer_assault_rate")
+glimpse(crimes)
+```
+
+Also, change the variable type of `date` as a date variable and create `year` for further analysis.    
+```{r}
+# create year variable
+crimes$date<-as.Date(crimes$date,"%m-%d-%Y")
+crimes
+crimes$year<-format(crimes$date,"%Y")
+glimpse(crimes)
+```
+
+# Scatter plot 
+Let's start by examining the relationship between the violent crime rate and the property crime rate in the major cities. You can visualize the relationship of two numeric variables by plotting a scatter plot where x- and y-axis represents each numeric variable. 
+
+## Base R plot function
+Using base R plot function: 
+
+```{r}
+plot(crimes$violent_crime_rate, crimes$property_crime_rate)
+```
+
+However, the combination of `tidyverse` and `ggplot2` can help you create a nicer-looking chart in a more intrinsic way with more flexibility. 
+
+## ggplot: Intro
+`ggplot()` takes a dataset as the first argument, and you specify aesthetics (e.g. axes, color, type, etc) with the parameters in `aes()`. 
+
+In `ggplot()`, you specify the dataset and aesthetics, and `geom_point() indicates you'd like to create a scatter plot. 
+```{r}
+ggplot(crimes, aes(x=violent_crime_rate,y=property_crime_rate))+
+  geom_point()
+```
+
+We can create the same plot with a pipe operator:   
+```{r}
+crimes%>%
+  ggplot(aes(x=violent_crime_rate,y=property_crime_rate))+
+  geom_point()
+```
+
+## Change colors, sizes, etc 
+If you want to apply the different color, shape, etc, for *all* points, you can do it by changing the parameter in `geom_point()'. 
+```{r}
+crimes%>%
+  ggplot(aes(x=violent_crime_rate,y=property_crime_rate))+geom_point(size=5)
+
+crimes%>%
+  ggplot(aes(x=violent_crime_rate,y=property_crime_rate))+geom_point(col="blue")
+
+crimes%>%
+  ggplot(aes(x=violent_crime_rate,y=property_crime_rate))+geom_point(shape=4)
+
+crimes%>%
+  ggplot(aes(x=violent_crime_rate,y=property_crime_rate))+geom_point(col=2,shape=2, size =3)
+
+crimes%>%
+  ggplot(aes(x=violent_crime_rate,y=property_crime_rate))+geom_point(size=5, alpha=0.2)
+
+```
+
+## Different colors, sizes, etc. by groups
+If you want to use different colors by different groups, you can do it easily by setting it in `aes()`! 
+You can change the aesthetics to deliver more information on a chart. 
+
+```{r}
+crimes%>%
+  ggplot(aes(x=violent_crime_rate,y=property_crime_rate, size=officer_assault_rate))+geom_point()
+
+crimes%>%
+  ggplot(aes(x=violent_crime_rate,y=property_crime_rate, col=region))+geom_point()
+```
+
+You can do it in combination!
+
+```{r}
+crimes%>%
+  ggplot(aes(x=violent_crime_rate,y=property_crime_rate,size=officer_assault_rate,col=region))+
+  geom_point(shape=1)
+```
+
+Note that Officer Assault Rate is the number of police officers killed or assaulted in the line of duty. This bubble chart now shows that police officers are in more danger (as shown in bigger circles) in cities with higher crime rates.
+
+
+## Facet
+You can also easily create separate charts by subgroups (i.e. regions in this case) using `facet_wrap()`, which creates charts, which share the same axes, and displays them in a panel. 
+```{r}
+crimes%>%
+  ggplot(aes(y=property_crime_rate,x=violent_crime_rate,size=officer_assault_rate,colour=region))+
+  geom_point(shape=1)+
+  facet_wrap(~region)
+```
+
+## Add a statistics layer
+
+We can also add some statistical analysis results to the charts. 
+
+LOESS, which is a default smoothing method of `geom_smooth()`, is a non-parametric form of regression that uses a weighted, sliding-window, average to calculate a line of best fit. 
+```{r}
+crimes%>%
+  ggplot(aes(x=violent_crime_rate,y=property_crime_rate))+
+  geom_point(shape=1)+
+  geom_smooth(method=loess)
+```
+
+A linear regression model can be added into a scatter plot by adding specifying the smoothing method as "lm".
+
+```{r}
+crimes%>%
+  ggplot(aes(x=violent_crime_rate,y=property_crime_rate))+
+  geom_point(shape=1)+
+  geom_smooth(method=lm)
+```
+
+Using `facet_wrap()`, you can compare the trend by different regions in the United States.`fullrange=TRUE` extends the span of the linear model to the full range.   
+```{r}
+crimes%>%
+  ggplot(aes(x=violent_crime_rate,y=property_crime_rate, col=region))+
+  geom_point(shape=1)+
+  geom_smooth(method=lm,fullrange=TRUE)+
+  facet_wrap(~region)
+```
+
+# Bar charts
+A bar chart is a simple way to depict the frequencies of the values of a *categorical* attribute. 
+
+How many cities are contained in this dataset by region? In fact, the dataset is a panel dataset (i.e. repeated observations over time for the same entities) at a city-year level, where each city appears once per year. So, we can count the number of cities, if we set `year` to a specific year (e.g. `year=2000`), and count the number of observations. 
+
+Let's filter data with `year==2000` and then call `ggplot()` with `geom_bar()` to create a bar chart.
+
+```{r}
+crimes%>%
+  filter(year==2000)%>%
+  ggplot(aes(x=region))+
+  geom_bar()
+```
+
+
+# Histogram
+A histogram shows the frequency distribution for a numerical attribute. 
+
+The range of a numerical attribute is discretized into a fixed number of intervals (“bins”), usually of equal length. For each interval, the (absolute) frequency of values falling into each interval is indicated by the height of a bar. 
+
+Let's examine the distribution of the property crime rate. 
+
+```{r}
+crimes%>%
+  ggplot(aes(x=property_crime_rate))+
+  geom_histogram()
+```
+
+## Change bin width, fill, color..
+Try changing the value of `binwidth`. You will see the shape of the histogram changes. Also, as we did with a scatterplot, you can change the color of the histogram. 
+
+```{r}
+crimes%>%
+  ggplot(aes(x=property_crime_rate))+
+  geom_histogram(binwidth=1000, col="black",fill="red")
+```
+
+## Overlapping histograms
+
+We can easily create histograms for different regions using `facet_wrap()`. 
+```{r}
+crimes%>%
+  ggplot(aes(x=property_crime_rate, fill=region))+
+  geom_histogram(binwidth=100)+
+  facet_wrap(~region)
+```
+
+But you can also display these histograms in one chart with various options. 
+```{r}
+crimes%>%
+  ggplot(aes(x=property_crime_rate,fill=region))+
+  geom_histogram(binwidth=100)
+
+crimes%>%
+  ggplot(aes(x=property_crime_rate,fill=region))+
+  geom_histogram(binwidth=100,alpha=0.3, position="identity")
+
+crimes%>%
+  ggplot(aes(x=property_crime_rate,fill=region))+
+  geom_histogram(binwidth=100,position="stack")
+
+crimes%>%
+  ggplot(aes(x=property_crime_rate,fill=region))+
+  geom_histogram(binwidth=1000,position="dodge")
+```
+
+Instead of a histogram, you can create a density function in a similar manner. 
+
+```{r}
+crimes%>%
+  ggplot(aes(x=property_crime_rate, fill=region))+
+  geom_density(alpha=0.5)
+```
+
+
+# Box plot
+A boxplot is a very compact way to visualize and summarize the key statistics of a numeric attribute. 
+
+Let's examine the distribution of the property crime rate (which will be displayed in y-axis) by cities (which will be x-axis). Because we have too many cities in our datasets, let's focus on the cities in Florida. 
+
+```{r}
+crimes%>%
+  filter(state=="FL")%>%
+  ggplot(aes(x=city,y=property_crime_rate,fill=city))+
+  geom_boxplot()
+```
+The upper whisker extends from the hinge to the largest value no further than 1.5 \* IQR from the hinge (where IQR is the inter-quartile range, or distance between the first and third quartiles). The lower whisker extends from the hinge to the smallest value at most 1.5 \* IQR of the hinge. Data beyond the end of the whiskers are called "outlying" points and are plotted individually.
+
+# Time Series with Line Graph
+Let's examine the trend of the violent crime rate of the cities in New York state. Let's first examine the data. 
+```{r}
+crimes%>%
+  filter(state=="NY")%>%
+  distinct(city)
+
+crimes%>%
+  filter(state=="NY")
+```
+
+For line graphs, the data points must be grouped so that it knows which points to connect. If you want to connect all points, set `group=1`. Because we want to connect the points by cities, we will set `group=city`. 
+
+```{r}
+crimes%>%
+  filter(state=="NY")%>%
+   ggplot(aes(x=year,y=violent_crime_rate,group=city))+geom_line()
+```
+But we lost the information about which line is for which city. Let's use different types or colors of lines, so that we can distinguish them. 
+
+```{r}
+crimes%>%
+  filter(state=="NY")%>%
+   ggplot(aes(x=year,y=violent_crime_rate, group=city,col=city))+geom_line()
+
+crimes%>%
+  filter(state=="NY")%>%
+   ggplot(aes(x=year,y=violent_crime_rate, group=city,linetype=city))+geom_line()
+```
+
+
+# Assignment 2
+By modifying the code below, create box plots that show the range of the violent crime rate for each state in the South region, where each box represents a state. FYI, six states are categorized as South in the dataset. After creating the chart, answer the following questions. 
+
+```{r}
+crimes %>%
+  filter(region == "South") %>%
+  ggplot(aes(x = state, y = violent_crime_rate)) + geom_boxplot()
+```
+Q1. Which state has the city that has the lowest violent crime rate in the South region? 
+
+
+Q2. Which state has the highest median value of the violent crime rate? 
+
+Q3. By modifying the code below, create scatterplots that show the relationship between the officer assault rate (x-axis) and the murder rate (y-axis) by the states in the Northeast region. It will produce four scatter plots with regression lines, one for each state.  
+
+Which state shows the strongest *negative* correlation (i.e. the steeper, downward slope of regression lines)?  
+
+```{r}
+crimes %>%
+  filter(region == "Northeast") %>%
+  ggplot(aes(x = officer_assault_rate, y = murder_rate)) +
+  geom_point(shape = 1) +
+  geom_smooth(method = lm, fullrange = TRUE) +
+  facet_wrap( ~ state)
+```
+
+Q4.By modifying the code below, create a histogram that shows the distribution of property crime rate in year 2002. Set the binwidth=2000. Which of the bins contains the largest number of cities?
+
+```{r}
+crimes %>%
+  filter(year == "2002") %>%
+  ggplot(aes(x = property_crime_rate)) +
+  geom_histogram(binwidth = 2000,
+                 colour = "black",
+                 fill = "white")
+```
+(1) The bin whose x-axis values go from 0 to 2500.
+(2) The bin whose x-axis values go from 2500 to 5000.
+(3) The bin whose x-axis values go from 5000 to 7500.
+(4) The bin whose x-axis values go from 7500 to 10000.
+(5) The bin whose x-axis values go from 10000. to 12500
+
+Q5. Similar to Assignment 1, generate a report from "Creating-Charts-Student.Rmd". This time, please knit it in a Word document. Change the author name on the top of this R markdown file to your name. Compile this R markdown file into a Word document and submit it through the course Blackboard>Assignment 2. Your report should contain all the codes and the results of in-class exercises as well as the codes for the assignment questions. 
+
+Q6. Create a dashboard with Tableau by following the instruction in "Creating-Charts-Tableau.doc". After creating a dashboard, export your Tableau dashboard view as PowerPoint. Click “File>Export As Powerpoint”, and include “This View”. It will create a PPT file that includes a snapshot of the dashboard. Submit this ppt file through Blackboard as your answer for Question 6. 
