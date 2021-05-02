@@ -1,0 +1,159 @@
+---
+title: "Assignment3_IT_Helpdesk_Modeling"
+author: "Minghao Du"
+output:
+  word_document: default
+  html_notebook: default
+---
+
+# Set-up
+Load packages. 
+```{r}
+rm(list = ls())
+library(readxl)
+library(tidyverse)
+library(ggplot2)
+```
+
+For this and the next assignments (Assignment 3 and 4), you will use the dataset from https://www.ibm.com/communities/analytics/watson-analytics-blog/it-help-desk/. (the link is now invalid.) 
+This data is from an Information Technology (IT) department interested in improving the satisfaction of customers.  
+To start their analysis, they constructed this data set of 100,000 closed tickets that were filed at their help desk. 
+
+Load the dataset and save it as ithelp. 
+```{r}
+ithelp <- read_excel("WA_Fn-UseC_-IT-Help-Desk.xlsx")
+```
+
+```{r}
+glimpse(ithelp)
+```
+
+A total of 100,000 rows. Each row represent an individual request. The data includes:
+
+* Requestor: employee who submitted the ticket
+* RequestorSeniority: employee’s seniority within the company
+* ITOwner: IT employee who serviced the ticket
+* FileAgainst: functional area against which the ticket was filed (systems, software, hardware, access)
+* TicketType: whether the ticket was a request for new services or an issue with existing services
+* Severity: submitter-assigned severity of the ticket
+* Priority: IT-assigned priority of the ticket
+* daysOpen: number of days the ticket was open
+* Satisfaction: satisfaction with the resolution of the ticket (reported by the submitter)
+
+```{r}
+summary(ithelp)
+```
+
+Some 'character' variables behave unexpectedly. Let's convert all character variables into factors, which indicate categorical variables in R. 
+
+```{r}
+ithelp<-ithelp%>%
+  mutate(ticket=as.factor(ticket),
+         Requestor=as.factor(Requestor),
+         RequestorSeniority=as.factor(RequestorSeniority),
+         ITOwner=as.factor(ITOwner),
+         FiledAgainst=as.factor(FiledAgainst),
+         TicketType=as.factor(TicketType),
+         Severity=as.factor(Severity),
+         Priority=as.factor(Priority),
+         Satisfaction=as.factor(Satisfaction))
+```
+
+Let's check the summary again. 
+```{r}
+summary(ithelp)
+```
+
+It turns out that there are many cases with "Unknown" Satisfaction. Let's exclude these cases from the analysis (Step 1: filter). Next, we may build a multi-class classification model (Unsatisfied, Satisfied, Highly satisfied), but let's simplify it to a binary classifier and identify "Unsatisfied" cases, which are problematic. Create a new variable, "negative", which indicates if a user's feedback is negative (Step 2: mutate). The following code will do these jobs for you. 
+
+```{r}
+ithelp<-ithelp%>%
+  filter(Satisfaction!="0 - Unknown")%>%
+  mutate(negative=as.factor(ifelse(Satisfaction =="1 - Unsatisfied","Yes","No")))
+
+summary(ithelp)
+```
+
+# Q1. Classification tree model
+```{r}
+library(rpart)
+library(rpart.plot)
+```
+
+Build a model to predict "negative" with the following variables. Fill in the blank to complete the code below. 
+* RequestorSeniority
+* FiledAgainst
+* TicketType
+* Severity
+* Priority
+* daysOpen
+
+Set the control as `control=rpart.control(cp=0.001)`. 
+```{r}
+ct_model<-rpart(negative ~ RequestorSeniority+FiledAgainst+TicketType+Severity+Priority+daysOpen,    # model formula
+                data = ithelp,             # dataset
+                method="class",            # "class" indicates a classification tree model 
+                control=rpart.control(cp=0.001))   # tree control parameters. 
+```
+
+Display the tree model with `rpart.plot` and answer the following questions based on this model result.
+```{r}
+rpart.plot(ct_model)
+
+```
+
+Question 1: Which one of the following characterizes the case that receive negative feedback (i.e. the probability of negative feedback greater than 50%)? 
+
+(1) Not closed (i.e. resolved) within 12 days (daysOpen=>13 days) 
+(2) Priority is High
+(3) Not filed against Hardware (i.e. filed against Access/Login, Software, or Systems)
+(4) Severity is either minor or normal
+(5) All conditions above should be met. 
+
+
+Question 2: What is the probability that a case receives negative feedback if the case is resolved within 12 days? 
+(1) 27%
+(2) 41%
+(3) 80%
+(4) Cannot know.
+
+# Logit Regression Model
+Build a logit regression model to predict "negative" with the following variables. Fill in the blank to complete the code below. 
+* RequestorSeniority
+* FiledAgainst
+* TicketType
+* Severity
+* Priority
+* daysOpen
+
+```{r}
+logit_model<-glm(negative ~ RequestorSeniority+FiledAgainst+TicketType+Severity+Priority+daysOpen,             
+                 family="binomial",
+                 data = ithelp)
+summary(logit_model)
+```
+Question 3: Which of the following is NOT an implication that you can draw from this logit regression result? 
+
+(1) An increase in the daysOpen is associated with a higher chance of negative feedback.
+(2) A request with high priority is more likely to receive negative feedback.
+(3) Compared to Junior, a request from Senior is more likely to receive negative feedback.
+(4) All of the above
+
+
+Question 4. Save the predicted probability from a logit model by creating a new variable *logit_pred* in the dataset. What is the probability that the ticket number 1404 receives negative feedback? 
+```{r}
+ithelp$logit_pred<-predict(logit_model, type = "response")
+ithelp%>%
+  filter(ticket == 1404)
+```
+
+(1) 18%
+(2) 23%
+(3) 53%
+(4) 118%
+
+Question 5. The same as the previous assignments, your last task is creating a report. Change the author name on the top of this R markdown file to yours. Compile this R markdown file into a Word or html document and submit it through the course Blackboard. Your report should contain all codes and results of in-class exercises as well as the assignment questions and answers. 
+
+
+
+
