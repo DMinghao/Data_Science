@@ -1,0 +1,514 @@
+---
+title: "Credit Card Default"
+output:
+  word_document:
+    toc: yes
+  html_notebook:
+    number_sections: yes
+    toc: yes
+---
+
+# Intro
+As always, let's start with clearing the workspace and load required packages. 
+For this exercise, we will use the dataset, *Default* dataset, which is available from *ISLR* library. 
+ISLR packages provide several datasets. The description of datasets are available here: http://cran.r-project.org/web/packages/ISLR/ISLR.pdf
+
+```{r}
+rm(list = ls())     # clear the workspace 
+library(ISLR)       # load ISLR data package
+library(tidyverse)
+library(ggplot2)
+```
+
+
+# Data Preparation
+Examine the dataset. It contains four variables, `default`, `student`,`balance`, and `income`.  
+```{r}
+Default<-as_tibble(Default)
+Default
+glimpse(Default)       
+
+head(Default) # show the first six rows
+tail(Default) # show the last six rows
+names(Default)      # variable names
+nrow(Default)       # the number of rows
+ncol(Default)       # the number of columns
+summary(Default)    # basic summary statistics of the variables in Default dataset (default, student, balance, income)
+```
+
+```{r}
+# frequency table 
+summary(Default$default)   # summary of default variable
+table(Default$default)     # contingency table: frequency of each case (yes/no) in default variable
+table(Default$student)     # contingency table: frequency of each case (yes/no) in student variable
+table(Default$default, Default$student)  # cross-tabulation
+```
+
+# Data Visualization
+## Bar chart
+```{r}
+Default %>%
+  ggplot(aes(x=default,fill=default)) +
+  geom_bar()
+
+Default %>%
+  ggplot(aes(x=student,fill=student)) +
+  geom_bar()
+```
+
+## Histograms
+```{r}
+Default %>%
+  ggplot(aes(x=income)) +
+  geom_histogram(binwidth=1000, colour="black",fill="white")
+
+Default %>%
+  ggplot(aes(x=income,fill=student)) +
+  geom_histogram(binwidth=1000,alpha=.5,position="identity")
+
+Default %>%
+  ggplot(aes(x=income,fill=default)) +
+  geom_histogram(binwidth=1000,alpha=.5,position="identity")
+```
+
+## Boxplots
+```{r}
+ggplot(Default,aes(x=default,y=balance,fill=default))+geom_boxplot()
+ggplot(Default,aes(x=default,y=income,fill=default))+geom_boxplot()
+```
+
+## Scatter plots
+```{r}
+Default %>%
+  ggplot(aes(x=balance,y=income,color=default)) +
+  geom_point(shape=1)
+```
+
+How do these visualizations help us predict default? 
+
+# Week 3: Modeling - Tree-based classification model 
+## Classification Trees
+We need *rpart* package for Classification Trees. More on rpart : http://cran.r-project.org/web/packages/rpart/vignettes/longintro.pdf
+
+`rpart.plot` is a package for visualizing classification tree models. 
+```{r}
+library(rpart)
+library(rpart.plot)
+```
+
+Let's build a model. 
+```{r}
+ct_model<-rpart(default~student+balance+income,           # model formula
+                data=Default,                             # dataset
+                method="class",                           # "class" indicates a classification tree model 
+                control=rpart.control(cp=0.03,maxdepth=4))   # tree control parameters. 
+```
+You can use `rpart` function to build a regression tree, but we will not do it in this class. `method="class"` indicates that we want to build a classification tree model. 
+
+By changing the parameter values for `control`, you can change how the model is trained (and shaped). Try changing the values and see how the model changes. For more information, `?rpart.control`. These are some examples. 
+
+* minsplit: minimum number of data points required to attempt a split
+* cp: complexity parameter
+* maxdepth: depth of a classification tree 
+
+
+Which value should we choose? We will discuss it later with model evaluation (Week 5). 
+
+Next, let's visualize the tree model. 
+```{r}
+rpart.plot(ct_model)   # tree plot
+```
+
+Here, I tried to visualize the classification tree model results on the scatterplot. It could be done, because the model used the two numeric variables. 
+```{r}
+Default %>%
+  ggplot(aes(x=balance,y=income,color=default)) +
+  geom_point(shape=1)+
+  geom_vline(xintercept=1800.002,linetype="dashed")+
+  geom_vline(xintercept=1971.915,linetype="dashed")+
+  geom_hline(yintercept=27401.2,linetype="dashed")+
+  annotate("rect",xmin=1800.002, xmax=1971.915, ymin=0, ymax=27401.2,fill="red",alpha=0.2)+
+  annotate("rect",xmin=1971.915, xmax=Inf, ymin=0, ymax=Inf,fill="blue",alpha=0.2)+
+  annotate("rect",xmin=0, xmax=1800.002, ymin=0, ymax=Inf,fill="red",alpha=0.2)+
+  annotate("rect",xmin=1800.002, xmax=1971.915, ymin=27401.2, ymax=Inf,fill="blue",alpha=0.2)
+```
+
+```{r}
+#print(ct_model)        # model results 
+```
+```{r}
+#summary(ct_model)      # model result details 
+```
+
+
+
+Get the predicted value - class membership (yes or no) --> using a cut-off of 50%. 
+```{r}
+ct_pred_class<-predict(ct_model,type="class") # class membership (yes or no) 
+head(ct_pred_class)
+
+ct_pred<-predict(ct_model)  # get the predicted values - class probabilities (default)
+head(ct_pred)
+```
+
+Let's create a new column in Default: save the predicted probability of default (yes) from the second column of dt_pred.
+```{r}
+Default$ct_pred_prob<-ct_pred[,2]   
+```
+
+Alternatively, you can specify a certain cut-off value to assign class membership. You can set the cut-off at 30%, 50%, 80%, or whatever you want. 
+```{r}
+Default$ct_pred_class<-ifelse(Default$ct_pred_prob>0.5,"Yes","No")   
+```
+
+                                                                    
+```{r}
+head(Default)
+Default[253,]     # get the information of 253th customer 
+
+# show the customers whose predicted probability is greater than 70%
+Default%>%
+  filter(ct_pred_prob>0.7) 
+
+# sort customers by probability of default in descending order
+Default%>%
+  arrange(desc(ct_pred_prob))
+```
+
+## Random Forest
+```{r}
+set.seed(1)
+#install.packages("randomForest")
+library(randomForest)
+rf_model<-randomForest(default~income+balance+student,              # model formula
+                       data=Default,ntree=500, cutoff=c(0.5,0.5))
+```
+
+```{r}
+#print(rf_model)
+head(rf_model$votes)       # indicates the % of trees that voted for each class
+head(rf_model$predicted)   # the class favored by more trees (i.e. majority vote wins) 
+```
+
+```{r}
+varImpPlot(rf_model)  # importance of variables 
+```
+```{r}
+head(rf_model$vote)
+
+Default$rf_vote<-predict(rf_model,type="prob")[,2]
+head(Default)
+```
+# Week 4: Modeling - Linear classifier 
+## Support Vector Machine (SVM)
+```{r}
+library(e1071)
+model_svm<-svm(formula= default ~ balance+income+student, # model formula 
+               data=Default,                   # dataset
+               kernel="linear",  # this is the form of the decision boundary. Let's start with a linear kernel. 
+               cost=0.1)        # there are paremeters that are used to tune the model 
+model_svm
+```
+The model may not converge, and it is not uncommon. Also, note that it is not an error. It is less desire, but it provides classification results. To improve performance, you may try different cost parameters, or you may even try other kernel functions, other than "linear". Other option is normalizing data. But we will move on with this result. 
+
+Conceptually, you may interpret decision values as the distance between the observation and the decision boundary. The positive fitted value indicate one class, and negative value indicates the other class. 
+
+```{r}
+dv<-data.frame(model_svm$decision.values)
+
+ggplot(dv,aes(x=No.Yes)) +
+  geom_histogram(colour="black",fill="white")
+```
+
+
+```{r}
+head(model_svm$fitted) 
+table(model_svm$fitted)
+
+predicted_svm<-predict(model_svm,Default,decision.values = TRUE)
+head(attr(predicted_svm, "decision.values"))
+```
+
+```{r}
+Default
+
+Default$svm_pred_class <- predict(model_svm, Default) 
+Default$svm_dv<-c(attr(predicted_svm, "decision.values"))
+
+Default
+```
+
+## Logistic Regression
+```{r}
+logit_model<-glm(default~student+balance+income,  # generalized linear models
+                 family="binomial",               # specifying error distribution
+                 data=Default)                    # dataset
+summary(logit_model)
+```
+
+### Use of the model to predict
+```{r}
+Default$log_odd<-predict(logit_model)                         # get predicted log odds (default)
+Default$logit_pred_prob<-predict(logit_model,type="response") # get predicted probabilities
+glimpse(Default)
+Default%>%
+  select("default","student","log_odd","logit_pred_prob")
+```
+
+With the predicted probabilities, you can sort customers by the predicted probability of default in descending order. 
+```{r}
+Default%>%
+  arrange(desc(logit_pred_prob))%>%
+  select(default, student, balance, income, ct_pred_prob, ct_pred_class,logit_pred_prob)
+```
+
+And use a different cut-off for class prediction using `ifelse()`. 
+```{r}
+Default$logit_pred_class<-ifelse(Default$logit_pred_prob>0.5,"Yes","No")
+Default
+```
+
+# Week 5: Model Validation & Model tuning
+For many machine learning problems, simply running a model out-of-the-box and getting a prediction is not enough; you want the best model with the most accurate prediction. One way to perfect your model is with hyperparameter tuning, which means optimizing the settings for that specific model.
+
+Let's try to find the best set of parameters through model validation. 
+
+## Classification Tree Model
+### train/test split 
+The basic idea of validation is training models that use a different splitting criterion (i.e. different parameters) and use a test (or validation) set to choose the "best" model among the group of models.
+
+Let's select 2,000 indices out of 10,000 (20% of dataset). Using these indices, we will create a test and a training dataset. 
+```{r}
+set.seed(1)   # set a random seed 
+index <- sample(10000, 2000) # random selection of indices. 
+```
+
+Check `index`. It contains 2,000 random numbers. 
+```{r}
+index
+```
+The following codes will select the data instances in the rows in `index` and save them as `test`. The rest will be saved as  `training`. 
+
+```{r}
+test <- Default[index,c("default","student","balance","income")]       # save 20% as a test dataset
+training <-Default[-index,c("default","student","balance","income")]   # save the rest as a training set
+
+training
+
+```
+
+Alternatively, 
+```{r}
+test<-Default%>%
+  filter(row_number() %in% index)%>%
+  select("default","student","balance","income")
+
+training<-Default%>%
+  select("default","student","balance","income")%>%
+  setdiff(test)
+```
+
+### build a model with a training set
+Build a model using the training set. This part is the same as before except we use `training` instead of the entire dataset. 
+```{r}
+training_model<-rpart(default~student+balance+income,
+                      data=training, 
+                      method="class", 
+                      control=rpart.control(cp=0.03))
+
+rpart.plot(training_model)
+```
+
+This model does not look much different from what we had. But we now have 20% of dataset that were not used when we built this model. 
+
+### predicting probabilities/class labels for test data
+Now, the model will be evaluated on a test data. For this, we  apply the model to the test dataset and get the predicted values. It can be done by providing a dataset name with a model to `predict()` function.   
+```{r}
+test$ct_pred_prob<-predict(training_model,test)[,2]
+head(test)
+test$ct_pred_class<-predict(training_model,test,type="class")
+test
+```
+
+Check the accuracy of the model by comparing the the actual values (default) and the predicted values (ct_pred_class).
+```{r}
+table(test$default==test$ct_pred_class)  
+1947/2000
+```
+
+You may also want to check a confusion table. 
+```{r}
+table(test$ct_pred_class,test$default, dnn=c("predicted","actual"))  # confusion table on test data
+```
+
+### k-fold Cross-validation 
+```{r}
+set.seed(1)   # set a random seed 
+full_tree<-rpart(default~student+balance+income,
+                     data=training, 
+                     method="class",
+                     control=rpart.control(cp=0))
+
+rpart.plot(full_tree)
+```
+
+Note that we could make pretty good prediction, even without any classification model. If we consider all customers as non-defaulters, the error rate is only 3%. This is what root node error indicates. `rel error` indicates relative error rates to this roote node error. With additional segmentation (splits), you observe that `rel error` decreases.
+
+`xerror` is cross-validated relative error rates, and `xstd` is its standard deviation. 
+```{r}
+printcp(full_tree)   # xerror, xstd - cross validation results  
+```
+Using `plotcp()`, you can check how the cross-validation error rate changes as the complexity of the model increases. In this chart, x-axis is model complexity, and y-axis is xerror rate (from cross-validation). The bars indicate standard deviation. 
+```{r}
+plotcp(full_tree)    
+```
+
+We may choose the cp value that minimizes cross-validation errors. However, it may not be always the best option. As you can see, the error rate with 4 splits is within the rage of standard deviation of the minimum error rate. You may want to choose the one with 4 splits for the ease of interpretation. 
+```{r}
+min_xerror<-full_tree$cptable[which.min(full_tree$cptable[,"xerror"]),]
+min_xerror
+
+# prune tree with minimum cp value
+min_xerror_tree<-prune(full_tree, cp=min_xerror[1])
+rpart.plot(min_xerror_tree)
+```
+
+Let's consider mim_xerror_tree as the best pruned tree, and get the prediction. 
+```{r}
+bp_tree<-min_xerror_tree
+test$ct_bp_pred_prob<-predict(bp_tree,test)[,2]
+test$ct_bp_pred_class=ifelse(test$ct_bp_pred_prob>0.5,"Yes","No")
+
+table(test$ct_bp_pred_class==test$default)  # error rate
+
+table(test$ct_bp_pred_class,test$default, dnn=c("predicted","actual"))  # confusion table on test data
+```
+
+## Random Forest
+### hold-out validation vs. OOB errors
+Following a similar process, we can validate the performance of a random forest model.  
+```{r}
+set.seed(1)
+rf_training_model<-randomForest(default~income+balance+student,              # model formula
+                       data=training,          # use a training dataset for building a model
+                       ntree=500,                     
+                       cutoff=c(0.5,0.5), 
+                       mtry=2,
+                       importance=TRUE)
+rf_training_model
+```
+
+A nice feature of `RandomForest()` is that it internally conducts analysis which is (conceptually) similar to holdout validation. The Out-Of-Bag samples are the training obsevations that were not selected into the bootstrapped sample. Since these observations were not used in training, we can use them instead to evaluate the accuracy of the model. 
+
+
+### hyperparameter tuning for Random Forest
+We can use the `tuneRF()` function in place of the randomForest() function to train a series of models with different mtry values (i.e. number of variables randomly sampled as candidates at each split) and examine the the results. Note that the `tuneRF()` receives two arguments, x (matrix or data frame of predictor variables) and y (data of the target variable; must be a factor for classification).
+
+The tuneRF() function has an argument, ntreeTry that defaults to 50 trees. Set nTreeTry = 500 to train a random forest model of the same size as you previously did. After tuning the forest, this function will plot model performance (OOB error) as a function of the mtry values that were evaluated.
+
+```{r}
+# Execute the tuning process
+set.seed(1)              
+res <- tuneRF(x = training%>%select(-default),
+              y = training$default,mtryStart=2,
+              ntreeTry = 500)
+```
+
+
+```{r}
+
+rf_best_model<-randomForest(default~income+balance+student,              # model formula
+                       data=training,          # use a training dataset for building a model
+                       ntree=500,                     
+                       cutoff=c(0.5,0.5), 
+                       mtry=1,
+                       importance=TRUE)
+rf_best_model
+
+test$rf_pred_prob<-predict(rf_best_model,test,type="prob")[,2]   #use a test dataset for model evaluation
+test$rf_pred_class<-predict(rf_best_model,test,type="class")
+glimpse(test)
+
+table(test$default==test$rf_pred_class)    
+```
+
+## SVM
+We can tune SVM models using `tune` function. Set a range of search values for the parameter. It builds an SVM model for each possible combination of parameter values and evaluate accuracy. It will return the parameter combination that yields the best accuracy. 
+
+```{r}
+svm_tune <- tune(svm,                            # find a best set of parameters for the svm model      
+                 default~student+balance+income,         
+                 data = training,
+                 kernel="radial", 
+                 ranges = list(cost = 10^(-5:0))) # specifying the ranges of parameters  
+                                                  # in the penalty function to be examined
+                                                  # you may wish to increase the search space like 
+                                                  
+
+print(svm_tune)                              # best parameters for the model
+best_svm_mod <- svm_tune$best.model
+
+hist(best_svm_mod$decision.values)
+table(best_svm_mod$fitted)
+
+test$svm_pred_class <- predict(best_svm_mod, test) # save the predicted class by the svm model
+test$svm_dv<-as.numeric(attr(predict(best_svm_mod, test, decision.values = TRUE),"decision.values"))
+glimpse(test)
+```
+
+## Logit regression
+### Hold-out validation
+```{r}
+logit_training_model<-glm(default~student+balance+income,family="binomial",data=training)
+summary(logit_training_model)
+
+test$logit_pred_prob<-predict(logit_training_model,test,type="response")
+test$logit_pred_class<-ifelse(test$logit_pred_prob>0.5,"Yes","No") 
+glimpse(test)
+table(test$default==test$logit_pred_class)
+
+```
+
+### step-wise regression
+```{r}
+# Specify a null model with no predictors
+null_model <- glm(default~1, data = training, family = "binomial")
+
+# Specify the full model using all of the potential predictors
+full_model <- glm(default~student+balance+income, data = training, family = "binomial")
+
+# Use a forward stepwise algorithm to build a parsimonious model
+forward_model <- step(null_model, scope = list(lower = null_model, upper = full_model), direction = "forward")
+summary(forward_model)
+# Use a forward stepwise algorithm to build a parsimonious model
+backward_model <- step(full_model, scope = list(lower = null_model, upper = full_model), direction = "backward")
+summary(backward_model)
+
+```
+
+```{r}
+logit_best_model<-glm(default~student+balance,family="binomial",data=training)
+summary(logit_best_model)
+
+test$logit_pred_prob<-predict(logit_best_model,test,type="response")
+test$logit_pred_class<-ifelse(test$logit_pred_prob>0.5,"Yes","No") 
+glimpse(test)
+table(test$default==test$logit_pred_class)
+
+```
+
+
+## Performance Visualization with ROC
+For this exercise, you need a new package, *pROC*. 
+```{r}
+library(pROC)
+ct_roc<-roc(test$default,test$ct_pred_prob,auc=TRUE)
+rf_roc<-roc(test$default,test$rf_pred_prob,auc=TRUE)
+logit_roc<-roc(test$default,test$logit_pred_prob,auc=TRUE)
+svm_roc<-roc(test$default,test$svm_dv,auc=TRUE)
+
+plot(ct_roc,print.auc=TRUE,col="blue")
+plot(rf_roc,print.auc=TRUE,print.auc.y=.4,col="green", add=TRUE)
+plot(logit_roc,print.auc=TRUE,print.auc.y=.3, col="red",add=TRUE)
+plot(svm_roc,print.auc=TRUE,print.auc.y=.2, col="black",add=TRUE)
+```
