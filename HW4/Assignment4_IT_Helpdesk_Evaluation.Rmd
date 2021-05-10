@@ -147,7 +147,7 @@ nrow(test[test$negative != test$predicted_Prob_YN,]) / nrow(test)
 table(test$predicted_Prob_YN,
       test$negative,
       dnn = c("predicted", "actual"))
-nrow(test[test$predicted_Prob_YN == "Yes",]) / nrow(test[test$negative == "No",])
+nrow(test %>% filter(test$predicted_Prob_YN == "Yes", test$negative == "No")) / nrow(test %>% filter(test$negative == "No"))
 ```
 
 # Logit Regression Model
